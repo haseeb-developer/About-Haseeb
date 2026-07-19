@@ -196,7 +196,7 @@
     card.innerHTML = `
       <div class="flex items-start justify-between gap-4">
         <div
-          class="platform-icon-wrap flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
+          class="platform-icon-wrap flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
           style="background: ${account.bgColor}; color: ${account.color};"
         >
           ${account.icon}
@@ -208,7 +208,7 @@
 
       <div class="mt-4">
         <h3 class="font-display text-lg font-semibold text-white">${account.platform}</h3>
-        <p class="account-username mt-1 truncate text-sm text-slate-500">${account.username}</p>
+        <p class="account-username mt-1 truncate text-sm text-slate-500">@${account.username}</p>
       </div>
 
       <div class="card-actions mt-5">
