@@ -6,28 +6,16 @@
 
   const elements = {
     profileName: document.getElementById("profile-name"),
-    profileTitle: document.getElementById("profile-title"),
-    profileBio: document.getElementById("profile-bio"),
-    profileAvatar: document.getElementById("profile-avatar"),
-    profileTags: document.getElementById("profile-tags"),
-    headerInitials: document.getElementById("header-initials"),
-    emailCta: document.getElementById("email-cta"),
-    footerName: document.getElementById("footer-name"),
-    footerYear: document.getElementById("footer-year"),
-    aboutText: document.getElementById("about-text"),
-    quickInfo: document.getElementById("quick-info"),
     accountsGrid: document.getElementById("accounts-grid"),
     categoryFilters: document.getElementById("category-filters"),
     searchInput: document.getElementById("search-input"),
     noResults: document.getElementById("no-results"),
-    menuToggle: document.getElementById("menu-toggle"),
-    mobileMenu: document.getElementById("mobile-menu"),
-    menuIconOpen: document.getElementById("menu-icon-open"),
-    menuIconClose: document.getElementById("menu-icon-close"),
-    statusBadge: document.getElementById("status-badge"),
-    statusText: document.getElementById("status-text"),
     toast: document.getElementById("toast"),
     constellation: document.getElementById("constellation"),
+    footerName: document.getElementById("footer-name"),
+    footerCopyName: document.getElementById("footer-copy-name"),
+    footerYear: document.getElementById("footer-year"),
+    footerEmail: document.getElementById("footer-email"),
   };
 
   /* ---------------- Icons ---------------- */
@@ -39,55 +27,16 @@
     check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="h-4 w-4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>`,
   };
 
-  function getInitials(name) {
-    return name
-      .split(" ")
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0].toUpperCase())
-      .join("");
-  }
-
-  /* ---------------- Profile ---------------- */
+  /* ---------------- Profile (name + footer only) ---------------- */
 
   function renderProfile() {
-    const { name, title, bio, avatar, email, tags, about, quickInfo, status, statusOnline } = profileData;
+    const { name, email } = profileData;
 
-    elements.profileName.textContent = name;
-    elements.profileTitle.textContent = title;
-    elements.profileBio.textContent = bio;
-    elements.profileAvatar.src = avatar;
-    elements.profileAvatar.alt = `${name} profile photo`;
-    elements.headerInitials.textContent = getInitials(name);
-    elements.footerName.textContent = name;
-    elements.footerYear.textContent = new Date().getFullYear();
-    elements.aboutText.textContent = about;
-    elements.emailCta.href = `mailto:${email}`;
-
-    if (status) {
-      elements.statusText.textContent = status;
-    }
-    if (statusOnline === false) {
-      elements.statusBadge.style.opacity = "0.6";
-    }
-
-    elements.profileTags.innerHTML = tags
-      .map((tag) => `<span class="tag-pill">${tag}</span>`)
-      .join("");
-
-    elements.quickInfo.innerHTML = quickInfo
-      .map(({ label, value, href }) => {
-        const valueHtml = href
-          ? `<a href="${href}" class="text-accent-light transition hover:text-accent-glow">${value}</a>`
-          : `<span class="font-mono text-slate-300">${value}</span>`;
-
-        return `
-          <div class="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between">
-            <dt class="text-sm text-slate-500">${label}</dt>
-            <dd class="text-sm font-medium">${valueHtml}</dd>
-          </div>`;
-      })
-      .join("");
+    if (elements.profileName) elements.profileName.textContent = name;
+    if (elements.footerName) elements.footerName.textContent = name;
+    if (elements.footerCopyName) elements.footerCopyName.textContent = name;
+    if (elements.footerYear) elements.footerYear.textContent = new Date().getFullYear();
+    if (elements.footerEmail) elements.footerEmail.href = `mailto:${email}`;
   }
 
   /* ---------------- Filters + search ---------------- */
@@ -303,25 +252,6 @@
     });
   }
 
-  function setupMobileMenu() {
-    elements.menuToggle.addEventListener("click", () => {
-      const isOpen = !elements.mobileMenu.classList.contains("hidden");
-      elements.mobileMenu.classList.toggle("hidden", isOpen);
-      elements.menuIconOpen.classList.toggle("hidden", !isOpen);
-      elements.menuIconClose.classList.toggle("hidden", isOpen);
-      elements.menuToggle.setAttribute("aria-expanded", String(!isOpen));
-    });
-
-    elements.mobileMenu.querySelectorAll("a").forEach((link) => {
-      link.addEventListener("click", () => {
-        elements.mobileMenu.classList.add("hidden");
-        elements.menuIconOpen.classList.remove("hidden");
-        elements.menuIconClose.classList.add("hidden");
-        elements.menuToggle.setAttribute("aria-expanded", "false");
-      });
-    });
-  }
-
   /* ---------------- Constellation backdrop ---------------- */
 
   function setupConstellation() {
@@ -419,7 +349,6 @@
     renderAccounts();
     setupFilters();
     setupSearch();
-    setupMobileMenu();
     setupConstellation();
   }
 
