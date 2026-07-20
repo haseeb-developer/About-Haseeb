@@ -147,7 +147,7 @@ const accountsData = [
     platform: "Linkedin",
     username: "haseeb-developer",
     url: "https://www.linkedin.com/in/haseeb-developer/",
-    category: "Social",
+    category: "Jobs",
     color: "#ffffff",
     bgColor: "transparent",
     icon: `
