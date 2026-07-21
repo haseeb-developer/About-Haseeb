@@ -16,6 +16,13 @@
     footerCopyName: document.getElementById("footer-copy-name"),
     footerYear: document.getElementById("footer-year"),
     footerEmail: document.getElementById("footer-email"),
+    searchOverlay: document.getElementById("search-overlay"),
+    searchBackdrop: document.getElementById("search-backdrop"),
+    searchPanel: document.getElementById("search-panel"),
+    searchPanelInput: document.getElementById("advanced-search-input"),
+    searchCloseBtn: document.getElementById("search-close-btn"),
+    searchResultsList: document.getElementById("search-results-list"),
+    searchEmptyState: document.getElementById("search-empty-state"),
   };
 
   /* ---------------- Icons ---------------- */
@@ -25,6 +32,7 @@
     link: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10 13a5 5 0 007.07 0l2.83-2.83a5 5 0 00-7.07-7.07l-1.5 1.5"/><path stroke-linecap="round" stroke-linejoin="round" d="M14 11a5 5 0 00-7.07 0L4.1 13.83a5 5 0 007.07 7.07l1.5-1.5"/></svg>`,
     open: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>`,
     check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="h-4 w-4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>`,
+    search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-8 w-8"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>`,
   };
 
   /* ---------------- Profile (name + footer only) ---------------- */
@@ -234,6 +242,247 @@
     elements.accountsGrid.appendChild(fragment);
   }
 
+  /* ---------------- Advanced search (Shift + S) ---------------- */
+
+  let searchModalOpen = false;
+  let searchActiveIndex = -1;
+  let searchDebounceTimer = null;
+  let lastFocusedBeforeSearch = null;
+
+  function isDesktopDevice() {
+    const hasFinePointer = window.matchMedia("(pointer: fine)").matches;
+    const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+    return hasFinePointer && !isTouchDevice && window.innerWidth >= 768;
+  }
+
+  function createSearchResultItem(account, index) {
+    const item = document.createElement("div");
+    item.className = "search-result-item";
+    item.style.animationDelay = `${Math.min(index, 10) * 40}ms`;
+    item.setAttribute("role", "option");
+    item.dataset.index = String(index);
+
+    item.innerHTML = `
+      <div class="search-result-icon-wrap" style="background: ${account.bgColor}; color: ${account.color};">
+        ${account.icon}
+      </div>
+      <div class="search-result-info">
+        <div class="search-result-top-row">
+          <span class="search-result-platform">${account.platform}</span>
+          <span class="search-result-category">${account.category}</span>
+        </div>
+        <p class="search-result-username">@${account.username}</p>
+      </div>
+      <div class="search-result-actions">
+        <button
+          type="button"
+          class="action-btn search-copy-username"
+          data-tooltip="Copy username"
+          aria-label="Copy username for ${account.platform}"
+        >
+          ${icons.copy}
+        </button>
+        <button
+          type="button"
+          class="action-btn search-copy-link"
+          data-tooltip="Copy link"
+          aria-label="Copy profile link for ${account.platform}"
+        >
+          ${icons.link}
+        </button>
+        <a
+          href="${account.url}"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="action-btn search-open-link"
+          data-tooltip="Open profile"
+          aria-label="Open ${account.platform} profile in a new tab"
+        >
+          ${icons.open}
+        </a>
+      </div>
+    `;
+
+    const copyUsernameBtn = item.querySelector(".search-copy-username");
+    const copyLinkBtn = item.querySelector(".search-copy-link");
+
+    copyUsernameBtn.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      const ok = await copyText(account.username);
+      if (ok) {
+        flashButtonSuccess(copyUsernameBtn);
+        showToast(`Username copied — ${account.username}`);
+      } else {
+        showToast("Couldn't copy — try again");
+      }
+    });
+
+    copyLinkBtn.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      const ok = await copyText(account.url);
+      if (ok) {
+        flashButtonSuccess(copyLinkBtn);
+        showToast(`Link copied — ${account.platform}`);
+      } else {
+        showToast("Couldn't copy — try again");
+      }
+    });
+
+    item.querySelector(".search-open-link").addEventListener("click", (event) => {
+      event.stopPropagation();
+    });
+
+    item.addEventListener("mouseenter", () => setSearchActiveIndex(index));
+
+    return item;
+  }
+
+  function getSearchMatches(query) {
+    const normalized = query.toLowerCase().trim();
+    if (!normalized) return accountsData;
+
+    return accountsData.filter(
+      (account) =>
+        account.platform.toLowerCase().includes(normalized) ||
+        account.username.toLowerCase().includes(normalized) ||
+        account.category.toLowerCase().includes(normalized)
+    );
+  }
+
+  function setSearchActiveIndex(index) {
+    const items = elements.searchResultsList.querySelectorAll(".search-result-item");
+    items.forEach((item) => item.classList.remove("is-active"));
+    searchActiveIndex = index;
+    if (index >= 0 && items[index]) {
+      items[index].classList.add("is-active");
+      items[index].scrollIntoView({ block: "nearest" });
+    }
+  }
+
+  function renderSearchResults(query) {
+    const matches = getSearchMatches(query);
+
+    elements.searchResultsList.classList.add("is-refreshing");
+
+    requestAnimationFrame(() => {
+      elements.searchResultsList.innerHTML = "";
+
+      if (matches.length === 0) {
+        elements.searchEmptyState.classList.add("is-visible");
+      } else {
+        elements.searchEmptyState.classList.remove("is-visible");
+        const fragment = document.createDocumentFragment();
+        matches.forEach((account, index) => {
+          fragment.appendChild(createSearchResultItem(account, index));
+        });
+        elements.searchResultsList.appendChild(fragment);
+      }
+
+      searchActiveIndex = matches.length > 0 ? 0 : -1;
+      setSearchActiveIndex(searchActiveIndex);
+
+      requestAnimationFrame(() => {
+        elements.searchResultsList.classList.remove("is-refreshing");
+      });
+    });
+  }
+
+  function openSearchModal() {
+    if (searchModalOpen || !elements.searchOverlay) return;
+
+    searchModalOpen = true;
+    lastFocusedBeforeSearch = document.activeElement;
+
+    elements.searchOverlay.classList.add("is-open");
+    elements.searchOverlay.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+
+    elements.searchPanelInput.value = "";
+    renderSearchResults("");
+
+    setTimeout(() => {
+      elements.searchPanelInput.focus();
+    }, 60);
+  }
+
+  function closeSearchModal() {
+    if (!searchModalOpen || !elements.searchOverlay) return;
+
+    searchModalOpen = false;
+    elements.searchOverlay.classList.remove("is-open");
+    elements.searchOverlay.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+
+    if (lastFocusedBeforeSearch && typeof lastFocusedBeforeSearch.focus === "function") {
+      lastFocusedBeforeSearch.focus();
+    }
+  }
+
+  function setupAdvancedSearch() {
+    if (!elements.searchOverlay) return;
+
+    document.addEventListener("keydown", (event) => {
+      const activeTag = document.activeElement ? document.activeElement.tagName : "";
+      const isTypingElsewhere =
+        !searchModalOpen &&
+        (activeTag === "INPUT" || activeTag === "TEXTAREA" || document.activeElement?.isContentEditable);
+
+      if (
+        !searchModalOpen &&
+        event.shiftKey &&
+        (event.key === "S" || event.key === "s") &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !event.metaKey &&
+        !isTypingElsewhere &&
+        isDesktopDevice()
+      ) {
+        event.preventDefault();
+        openSearchModal();
+        return;
+      }
+
+      if (!searchModalOpen) return;
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeSearchModal();
+        return;
+      }
+
+      const items = elements.searchResultsList.querySelectorAll(".search-result-item");
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        if (items.length === 0) return;
+        setSearchActiveIndex((searchActiveIndex + 1) % items.length);
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        if (items.length === 0) return;
+        setSearchActiveIndex((searchActiveIndex - 1 + items.length) % items.length);
+      } else if (event.key === "Enter") {
+        if (searchActiveIndex >= 0 && items[searchActiveIndex]) {
+          const link = items[searchActiveIndex].querySelector(".search-open-link");
+          if (link) link.click();
+        }
+      }
+    });
+
+    elements.searchBackdrop.addEventListener("click", closeSearchModal);
+    elements.searchCloseBtn.addEventListener("click", closeSearchModal);
+
+    elements.searchPanelInput.addEventListener("input", (event) => {
+      const value = event.target.value;
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => renderSearchResults(value), 90);
+    });
+
+    window.addEventListener("resize", () => {
+      if (searchModalOpen && !isDesktopDevice()) {
+        closeSearchModal();
+      }
+    });
+  }
+
   function setupFilters() {
     elements.categoryFilters.addEventListener("click", (event) => {
       const button = event.target.closest("[data-category]");
@@ -349,6 +598,7 @@
     renderAccounts();
     setupFilters();
     setupSearch();
+    setupAdvancedSearch();
     setupConstellation();
   }
 
