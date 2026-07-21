@@ -298,7 +298,7 @@ input:focus-visible {
 .footer-aurora::before {
   content: "";
   position: absolute;
-  inset-inline: 8%;
+  inset-inline: 0%;
   top: 0;
   height: 1px;
   background: linear-gradient(
